@@ -206,7 +206,9 @@ try:
     log_filename = "%s.%s" % (log_filename, now)
 except Exception as inst:
     print inst
-poap_log_file = open(log_filename, "w+")
+# log file initialization moved to the bottom of the script where the actual execution of loggable events begins.
+# poap_log_file = open(log_filename, "w+")
+
 
 def poap_log (info):
     poap_log_file.write(info)
@@ -215,24 +217,22 @@ def poap_log (info):
     print "poap_py_log:" + info
     sys.stdout.flush()
 
+# In all cases this function is redundant when using a context manager like we are, but leaving this just in case
+# others insist on calling it.
 def poap_log_close ():
-    poap_log_file.close()
+    try:
+        poap_log_file.close()
+    except NameError as e:
+        # someone called this function (or `abort_cleanup_exit`) before the log was initialized
+        pass
 
-def abort_cleanup_exit () : 
+def abort_cleanup_exit () :
     poap_log("INFO: cleaning up")
+    # Though the log file should only be referenced from the `with` block (context manager), it's sensible to leave
+    # the explicit close here just in case
     poap_log_close()
     exit(-1)
 
-
-# some argument sanity checks:
-
-if config_file_type == "serial_number" and serial_number is None:
-    poap_log("ERR: serial-number required (to derive config name) but none given")
-    exit(-1)
-
-if config_file_type == "location" and cdp_interface is None:
-    poap_log("ERR: interface required (to derive config name) but none given")
-    exit(-1)
 
 # figure out what kind of box we have (to download the correct image)
 try: 
@@ -264,17 +264,6 @@ system_image_dst        = "%s/%s"       % (image_dir_dst, system_image_dst)
 
 system_image_src        = "%s/%s"       % (image_dir_src, system_image_src)
 
-# cleanup stuff from a previous run
-# by deleting the tmp destination for image files and then recreating the
-# directory
-image_dir_dst_u="/%s" % image_dir_dst.replace(":", "/") # unix path: cli's rmdir not working!
-
-try: shutil.rmtree("%s.new" % image_dir_dst_u)
-except: pass
-os.mkdir("%s.new" % image_dir_dst_u)
-
-if not os.path.exists(image_dir_dst_u):
-    os.mkdir(image_dir_dst_u)
 
 # utility functions
 
@@ -360,9 +349,6 @@ def doCopy (protocol = "", host = "", source = "", dest = "", vrf = "management"
             exit(1)
         return False
     return True
-
-
-
 
 
 def get_md5sum_src (file_name):
@@ -557,46 +543,72 @@ def set_config_file_src_serial_number ():
     config_file_src = "%s.%s" % (config_file_src, serial_number)
     poap_log("INFO: Selected config filename (serial_number) : %s" % config_file_src)
 
-# This check seems redundant but it's here as a defensive programming measure
-# If the checks above change or go away, this code won't have to change
-if config_file_type == "location" and cdp_interface is not None:
-    # Set CDP variables for location option
-    # Will be used by set_config_file_src_location() function
-    poap_log("INFO: show cdp neighbors interface %s" % cdp_interface)
-    a = clid("show cdp neighbors interface %s" % cdp_interface)
-    b = json.loads(a)
-    cdpnei_switchName = str(b['TABLE_cdp_neighbor_brief_info']['ROW_cdp_neighbor_brief_info']['device_id'])
-    cdpnei_intfName = str(b['TABLE_cdp_neighbor_brief_info']['ROW_cdp_neighbor_brief_info']['port_id'])
-    cdpnei_intfName = string.replace(cdpnei_intfName, "/", "_")
-elif config_file_type == "location":
-    # set source config file based on switch's location
-    set_config_file_src_location()
-elif config_file_type == "serial_number": 
-    #set source config file based on switch's serial number
-    set_config_file_src_serial_number()
-else:
-    poap_log("ERR: Either config_file_type is not valid or interface was not given and location can not be derived.")
-    exit(-1)
 
-# finally do it
+# Opening the log file in this way ensures that in all cases the file is closed cleanly
+with open(log_filename, "w+") as poap_log_file:
+    # some argument sanity checks:
+    # These have been moved here (from approx. line 272) to facilitate better handling of the log file.
+    # This is acceptable because no real actions are attempted before this point
 
-verify_freespace()
-get_system_image()
-verify_images()
-get_config()
+    if config_file_type == "serial_number" and serial_number is None:
+        poap_log("ERR: serial-number required (to derive config name) but none given")
+        exit(-1)
 
-# don't let people abort the final stage that concretize everything
-# not sure who would send such a signal though!!!! (sysmgr not known to care about vsh)
-signal.signal(signal.SIGTERM, sig_handler_no_exit)
-install_it()
+    if config_file_type == "location" and cdp_interface is None:
+        poap_log("ERR: interface required (to derive config name) but none given")
+        exit(-1)
 
-if explicit_reload:
-    # We made it this far, and thus were successful, yet the POAP process (on 9372PX at least) will still assume failure(!?).
-    # Stop it from endlessly wiping the config and restarting by taking maters into our own hands.
-    # I'm unsure how to support the 'no reboot' option reliably.
-    poap_log('INFO: POAP Deployment successful.  Reloading switch now.')
-    poap_log_close()
-    cli('terminal dont-ask ; reload')
 
-poap_log_close()
+    # This check seems redundant but it's here as a defensive programming measure
+    # If the checks above change or go away, this code won't have to change
+    if config_file_type == "location" and cdp_interface is not None:
+        # Set CDP variables for location option
+        # Will be used by set_config_file_src_location() function
+        poap_log("INFO: show cdp neighbors interface %s" % cdp_interface)
+        a = clid("show cdp neighbors interface %s" % cdp_interface)
+        b = json.loads(a)
+        cdpnei_switchName = str(b['TABLE_cdp_neighbor_brief_info']['ROW_cdp_neighbor_brief_info']['device_id'])
+        cdpnei_intfName = str(b['TABLE_cdp_neighbor_brief_info']['ROW_cdp_neighbor_brief_info']['port_id'])
+        cdpnei_intfName = string.replace(cdpnei_intfName, "/", "_")
+    elif config_file_type == "location":
+        # set source config file based on switch's location
+        set_config_file_src_location()
+    elif config_file_type == "serial_number":
+        #set source config file based on switch's serial number
+        set_config_file_src_serial_number()
+    else:
+        poap_log("ERR: Either config_file_type is not valid or interface was not given and location can not be derived.")
+        exit(-1)
+
+    # cleanup stuff from a previous run
+    # by deleting the tmp destination for image files and then recreating the
+    # directory
+    image_dir_dst_u="/%s" % image_dir_dst.replace(":", "/") # unix path: cli's rmdir not working!
+
+    try: shutil.rmtree("%s.new" % image_dir_dst_u)
+    except: pass
+    os.mkdir("%s.new" % image_dir_dst_u)
+
+    if not os.path.exists(image_dir_dst_u):
+        os.mkdir(image_dir_dst_u)
+
+    # finally do it
+
+    verify_freespace()
+    get_system_image()
+    verify_images()
+    get_config()
+
+    # don't let people abort the final stage that concretize everything
+    # not sure who would send such a signal though!!!! (sysmgr not known to care about vsh)
+    signal.signal(signal.SIGTERM, sig_handler_no_exit)
+    install_it()
+
+    if explicit_reload:
+        # We made it this far, and thus were successful, yet the POAP process (on 9372PX at least) will still assume failure(!?).
+        # Stop it from endlessly wiping the config and restarting by taking maters into our own hands.
+        # I'm unsure how to support the 'no reboot' option reliably.
+        poap_log('INFO: POAP Deployment successful.  Reloading switch now.')
+        cli('terminal dont-ask ; reload')
+
 exit(0)
