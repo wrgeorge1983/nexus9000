@@ -293,18 +293,60 @@ def sigterm_handler (signum, frame):
 
 signal.signal(signal.SIGTERM, sigterm_handler)
 
+
+# generic file copy
+def file_copy(srcURL, dstURL, vrf='management', password=None, rmrf=False):
+    """ Generic file copy that doesn't assume source or destination relative to the switch.  The intent is to make it
+    easier to upload status to remote URLs.
+        * Upload logs to aid in troubleshooting efforts
+        * Upload files with switch information as a means of 'registering' the switches auto-configured IP and details
+        * etc..
+
+    :param srcURL:  Source URL in any form accepted by the NX-OS CLI 'copy' command
+    :param dstURL:  Destination URL in any form accepted by the NX-OS CLI 'copy' command
+    :param vrf:  VRF in which to perform this command
+    :param password:  if one or both URLs require authentication, this is the password that will be provided
+        NOTE: This will not work if both URLs require a different password
+    :param rmrf:  whether or not to attempt to call rm_rf on dstURL.
+        NOTE: This will not work on remote destination URLs
+    :return:  True if successful, False otherwise.  Exceptions are logged and explicitly propagated up.
+    """
+
+    cmd_list = ['terminal dont-ask']
+    if password is not None:
+        cmd_list.append('terminal password {password}')
+    cmd_list.append('copy {srcURL} {dstURL} vrf {vrf}')
+
+    cmd = ' ; '.join(cmd_list)
+    cmd = cmd.format(**locals())
+
+    try:
+        if rmrf:
+            rm_rf(dstURL)
+
+        run_cli(cmd)
+    except Exception as e:
+        poap_log('WARN: file_copy() failed: {0}'.format(e))
+        raise e
+
+
 # transfers file, return True on success; on error exits unless 'fatal' is False in which case we return False
 def doCopy (protocol = "", host = "", source = "", dest = "", vrf = "management", login_timeout=10, user = "", password = "", fatal=True):
-    rm_rf(dest)
 
     # mess with source paths (tftp does not like full paths)
     global username, root_path
     source = source[len(root_path):]
 
-    cmd = "terminal dont-ask ; terminal password %s ; " % password
-    cmd += "copy %s://%s@%s%s %s vrf %s" % (protocol, username, host, source, dest, vrf)
+    # let's de-emphasize this global variable and make **locals() work
+    if user == '':
+        user = username
 
-    try: run_cli(cmd)
+    srcURL = '{protocol}://{user}@{host}{source}'.format(**locals())
+    # we already expect `dest` to be well formed and complete
+    # we also accept for now that we will not handle an empty password sensibly
+    # we also accept that a failed copy will result in at least two (if not three) log messages
+    try:
+        file_copy(srcURL=srcURL, dstURL=dest, vrf=vrf, password=password, rmrf=True)
     except:
         poap_log("WARN: Copy Failed: %s" % str(sys.exc_value).strip('\n\r'))
         if fatal:
@@ -313,6 +355,9 @@ def doCopy (protocol = "", host = "", source = "", dest = "", vrf = "management"
             exit(1)
         return False
     return True
+
+
+
 
 
 def get_md5sum_src (file_name):
