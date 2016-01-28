@@ -75,6 +75,11 @@ md5sum_timeout          = 120
 # Note: the next line can be overwritten by command-line arg processing later
 config_file_type        = "static"
 
+
+# In certain (all?) circumstances the POAP process seems to ignore the result code and assume failure in all cases.
+# Set this to `True` to explicitly reload before handing control back.
+explicit_reload = False
+
 # parameters passed through environment:
 # TODO: use good old argv[] instead, using env is bad idea.
 # pid is used for temp file name: just use getpid() instead!
@@ -539,6 +544,14 @@ get_config()
 # not sure who would send such a signal though!!!! (sysmgr not known to care about vsh)
 signal.signal(signal.SIGTERM, sig_handler_no_exit)
 install_it()
+
+if explicit_reload:
+    # We made it this far, and thus were successful, yet the POAP process (on 9372PX at least) will still assume failure(!?).
+    # Stop it from endlessly wiping the config and restarting by taking maters into our own hands.
+    # I'm unsure how to support the 'no reboot' option reliably.
+    poap_log('INFO: POAP Deployment successful.  Reloading switch now.')
+    poap_log_close()
+    cli('terminal dont-ask ; reload')
 
 poap_log_close()
 exit(0)
