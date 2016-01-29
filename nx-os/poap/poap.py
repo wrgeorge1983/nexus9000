@@ -108,7 +108,7 @@ if os.environ.has_key('POAP_INTF'):
     cdp_interface=os.environ['POAP_INTF']
 
 # will append date/timespace into the name later
-log_filename = "/bootflash/poap.log"
+LOG_FILENAME = "/bootflash/poap.log"
 t=time.localtime()
 now="%d_%d_%d" % (t.tm_hour, t.tm_min, t.tm_sec)
 #now=None
@@ -219,7 +219,7 @@ if cl_protocol:
 if now is None:
   now=cli("show clock | sed 's/[ :]/_/g'");
 try:
-    log_filename = "%s.%s" % (log_filename, now)
+    LOG_FILENAME = "%s.%s" % (LOG_FILENAME, now)
 except Exception as inst:
     print inst
 # log file initialization moved to the bottom of the script where the actual execution of loggable events begins.
@@ -251,7 +251,7 @@ def upload_log_file(hostname, protocol='tftp', filename=None, vrf='management', 
     :return: None.
     """
     if filename is None:
-        filename = log_filename
+        filename = LOG_FILENAME
     filename = filename.split('/')[-1]  # last segment of the path, in case a path is given
 
     if username != '' and username[-1] != '@':
@@ -659,7 +659,7 @@ if cleanup_logs:
     cli('term dont-ask ; del *poap*log*')
 
 # Opening the log file in this way ensures that in all cases the file is closed cleanly
-with open(log_filename, "w+") as POAP_LOG_FILE:
+with open(LOG_FILENAME, "w+") as POAP_LOG_FILE:
     # some argument sanity checks:
     # These have been moved here (from approx. line 272) to facilitate better handling of the log file.
     # This is acceptable because no real actions are attempted before this point
