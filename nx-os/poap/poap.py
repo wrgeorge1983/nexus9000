@@ -87,6 +87,14 @@ explicit_reload = False
 cleanup_logs = False
 
 
+# upload the log file before aborting
+upload_log_on_abort = True
+
+
+# upload the log file after every write (infers log on abort)
+upload_log_on_write = False
+
+
 # parameters passed through environment:
 # TODO: use good old argv[] instead, using env is bad idea.
 # pid is used for temp file name: just use getpid() instead!
@@ -224,11 +232,15 @@ def poap_log (info):
     print "poap_py_log:" + info
     sys.stdout.flush()
 
+    if upload_log_on_write:
+        upload_log_file(hostname=hostname, vrf=vrf)
+
 
 def upload_log_file(hostname, protocol='tftp', filename=None, vrf='management', username='', password=None):
     """
     Upload the log file to a remote destination for later analysis.
     Will not work as written if the filename isn't in the root of its filesystem (bootflash, volatile, etc.)
+    Failure to upload the log for any reason will never be a failure condition
     :param hostname:  The hostname or IP of the remote destination
     :param protocol:  'tftp', 'scp', etc...
     :param filename:  The filename for both source and destination.  Only works for the root of both filesystems.
@@ -246,7 +258,12 @@ def upload_log_file(hostname, protocol='tftp', filename=None, vrf='management', 
 
     srcURL = 'bootflash:{filename}'.format(**locals())
     dstURL = '{protocol}://{username}{hostname}/{filename}'.format(**locals())
-    file_copy(srcURL=srcURL, dstURL=dstURL, vrf=vrf, password=password, rmrf=False)
+
+    try:
+        file_copy(srcURL=srcURL, dstURL=dstURL, vrf=vrf, password=password, rmrf=False)
+    # Never ever allow a failure at this point to break the rest of the script
+    except:
+        pass
 
 
 # In all cases this function is redundant when using a context manager like we are, but leaving this just in case
@@ -263,6 +280,9 @@ def abort_cleanup_exit () :
     poap_log("INFO: cleaning up")
     # Though the log file should only be referenced from the `with` block (context manager), it's sensible to leave
     # the explicit close here just in case
+    if upload_log_on_write or upload_log_on_abort:
+        upload_log_file(hostname=hostname, vrf=vrf)
+
     poap_log_close()
     exit(-1)
 
