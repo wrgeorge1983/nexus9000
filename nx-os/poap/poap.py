@@ -224,6 +224,31 @@ def poap_log (info):
     print "poap_py_log:" + info
     sys.stdout.flush()
 
+
+def upload_log_file(hostname, protocol='tftp', filename=None, vrf='management', username='', password=None):
+    """
+    Upload the log file to a remote destination for later analysis.
+    Will not work as written if the filename isn't in the root of its filesystem (bootflash, volatile, etc.)
+    :param hostname:  The hostname or IP of the remote destination
+    :param protocol:  'tftp', 'scp', etc...
+    :param filename:  The filename for both source and destination.  Only works for the root of both filesystems.
+    :param vrf:  VRF the operation should be carried out in; 'management' by default.
+    :param username:  Username required for remote destination, if any.
+    :param password:  Password required for remote destination, if any.
+    :return: None.
+    """
+    if filename is None:
+        filename = log_filename
+    filename = filename.split('/')[-1]  # last segment of the path, in case a path is given
+
+    if username != '' and username[-1] != '@':
+        username = '{0}@'.format(username)
+
+    srcURL = 'bootflash:{filename}'.format(**locals())
+    dstURL = '{protocol}://{username}{hostname}/{filename}'.format(**locals())
+    file_copy(srcURL=srcURL, dstURL=dstURL, vrf=vrf, password=password, rmrf=False)
+
+
 # In all cases this function is redundant when using a context manager like we are, but leaving this just in case
 # others insist on calling it.
 def poap_log_close ():
@@ -232,6 +257,7 @@ def poap_log_close ():
     except NameError as e:
         # someone called this function (or `abort_cleanup_exit`) before the log was initialized
         pass
+
 
 def abort_cleanup_exit () :
     poap_log("INFO: cleaning up")
