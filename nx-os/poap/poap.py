@@ -654,16 +654,20 @@ def save_address(hostname, protocol='tftp', file_prefix='', vrf='management'):
     file_copy(srcURL=srcURL, dstURL=dstURL, vrf=vrf)
 
 
-# Cleanup old log files before opening a new one
-if cleanup_logs:
-    cli('term dont-ask ; del *poap*log*')
+def verify_config_type(config_file_type, cdp_interface):
+    """
+    Conduct all config type validation in one spot.  Calls `abort_cleanup_exit()`
+    on failure.  This code has been consolidated here without any real consideration for
+    how redundant it is or is not.
+    :param config_file_type:
+    :param cdp_interface:
+    :return: None
+    """
 
-# Opening the log file in this way ensures that in all cases the file is closed cleanly
-with open(LOG_FILENAME, "w+") as POAP_LOG_FILE:
-    # some argument sanity checks:
+    global cdpnei_intfName, cdpnei_switchName
+
     # These have been moved here (from approx. line 272) to facilitate better handling of the log file.
     # This is acceptable because no real actions are attempted before this point
-
     if config_file_type == "serial_number" and serial_number is None:
         poap_log("ERR: serial-number required (to derive config name) but none given")
         exit(-1)
@@ -671,7 +675,6 @@ with open(LOG_FILENAME, "w+") as POAP_LOG_FILE:
     if config_file_type == "location" and cdp_interface is None:
         poap_log("ERR: interface required (to derive config name) but none given")
         exit(-1)
-
 
     # This check seems redundant but it's here as a defensive programming measure
     # If the checks above change or go away, this code won't have to change
@@ -688,11 +691,21 @@ with open(LOG_FILENAME, "w+") as POAP_LOG_FILE:
         # set source config file based on switch's location
         set_config_file_src_location()
     elif config_file_type == "serial_number":
-        #set source config file based on switch's serial number
+        # set source config file based on switch's serial number
         set_config_file_src_serial_number()
     else:
         poap_log("ERR: Either config_file_type is not valid or interface was not given and location can not be derived.")
         exit(-1)
+
+
+# Cleanup old log files before opening a new one
+if cleanup_logs:
+    cli('term dont-ask ; del *poap*log*')
+
+# Opening the log file in this way ensures that in all cases the file is closed cleanly
+with open(LOG_FILENAME, "w+") as POAP_LOG_FILE:
+    # some argument sanity checks:
+    verify_config_type(config_file_type=config_file_type, cdp_interface=cdp_interface)
 
     # cleanup stuff from a previous run
     # by deleting the tmp destination for image files and then recreating the
@@ -722,10 +735,10 @@ with open(LOG_FILENAME, "w+") as POAP_LOG_FILE:
         poap_log('ERR: {0}'.format(e))
         raise e
 
-
     if explicit_reload:
-        # We made it this far, and thus were successful, yet the POAP process (on 9372PX at least) will still assume failure(!?).
-        # Stop it from endlessly wiping the config and restarting by taking maters into our own hands.
+        # We made it this far, and thus were successful, yet the POAP process
+        # (on 9372PX at least) will still assume failure(!?).  Stop it from endlessly
+        # wiping the config and restarting by taking maters into our own hands.
         # I'm unsure how to support the 'no reboot' option reliably.
         poap_log('INFO: POAP Deployment successful.  Reloading switch now.')
         cli('terminal dont-ask ; reload')
