@@ -11,6 +11,8 @@
 # The above is the (embedded) md5sum of this file taken without this line, 
 # can be # created this way: 
 # f=poap.py ; cat $f | sed '/^#md5sum/d' > $f.md5 ; sed -i "s/^#md5sum=.*/#md5sum=$(md5sum $f.md5 | sed 's/ .*//')/" $f
+# or like this on nexus 9k series switches that demand double quotes around the md5sum:
+# f=poap.py ; cat $f | sed '/^#md5sum/d' > $f.md5 ; sed -i "s/^#md5sum=.*/#md5sum=\"$(md5sum $f.md5 | sed 's/ .*//')\"/" $f
 # This way this script's integrity can be checked in case you do not trust
 # tftp's ip checksum. This integrity check is done by /isan/bin/poap.bin).
 # The integrity of the files downloaded later (images, config) is checked 
