@@ -490,6 +490,7 @@ def get_version (msg):
             return status,ver
     
 def verify_images2 ():
+    poap_log("INFO: Attempting Verification of System Images" )
     sys_cmd="show version image %s" % system_image_dst
     sys_msg=cli(sys_cmd)
 
@@ -526,6 +527,7 @@ def verify_images ():
 
 # get config file from server
 def get_config ():
+    poap_log("INFO: Attempting Copy of Config File" )
     doCopy(PROTOCOL, HOSTNAME, config_file_src, config_file_dst, vrf, config_timeout, USERNAME, PASSWORD)
     poap_log("INFO: Completed Copy of Config File") 
     # get file's md5 from server (if any) and verify it, failure is fatal (exit)
@@ -535,6 +537,7 @@ def get_config ():
 # get system image file from server
 def get_system_image ():
     if not same_images(system_image_src, system_image_dst):
+        poap_log("INFO: Attempting Copy of System Image" )
         doCopy(PROTOCOL, HOSTNAME, system_image_src, system_image_dst_tmp, vrf, system_timeout, USERNAME, PASSWORD)
         poap_log("INFO: Completed Copy of System Image" ) 
         # get file's md5 from server (if any) and verify it, failure is fatal (exit)
@@ -551,7 +554,8 @@ def wait_box_online ():
 
 
 # install (make persistent) images and config 
-def install_it (): 
+def install_it ():
+    poap_log("INFO: Attempting final installation." )
     global cl_download_only
     if cl_download_only: exit(0)
     timeout = -1
