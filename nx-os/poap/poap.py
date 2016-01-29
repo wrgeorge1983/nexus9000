@@ -78,9 +78,14 @@ md5sum_timeout          = 120
 config_file_type        = "static"
 
 
-# In certain (all?) circumstances the POAP process seems to ignore the result code and assume failure in all cases.
-# Set this to `True` to explicitly reload before handing control back.
+# In certain (all?) circumstances the POAP process seems to ignore the result code and assume
+# failure in all cases.  Set this to `True` to explicitly reload before handing control back.
 explicit_reload = False
+
+# Especially in debugging scenarios it can be useful to clean up old logs and temp files
+# before we begin making new ones.  Set to True to enable this cleanup.
+cleanup_logs = False
+
 
 # parameters passed through environment:
 # TODO: use good old argv[] instead, using env is bad idea.
@@ -292,8 +297,8 @@ signal.signal(signal.SIGTERM, sigterm_handler)
 
 # generic file copy
 def file_copy(srcURL, dstURL, vrf='management', password=None, rmrf=False):
-    """ Generic file copy that doesn't assume source or destination relative to the switch.  The intent is to make it
-    easier to upload status to remote URLs.
+    """ Generic file copy that doesn't assume source or destination relative to the switch.
+    The intent is to make it easier to upload files to remote URLs.
         * Upload logs to aid in troubleshooting efforts
         * Upload files with switch information as a means of 'registering' the switches auto-configured IP and details
         * etc..
@@ -545,6 +550,10 @@ def set_config_file_src_serial_number ():
     config_file_src = "%s.%s" % (config_file_src, serial_number)
     poap_log("INFO: Selected config filename (serial_number) : %s" % config_file_src)
 
+
+# Cleanup old log files before opening a new one
+if cleanup_logs:
+    cli('term dont-ask ; del *poap*log*')
 
 # Opening the log file in this way ensures that in all cases the file is closed cleanly
 with open(log_filename, "w+") as poap_log_file:
