@@ -35,11 +35,11 @@ from cli import *
 # in your automation environment
 
 # system and kickstart images, configuration: location on server (src) and target (dst)
-n9k_image_version       = "6.1.2" # this must match your code version
+n9k_image_version       = "7.0.3.I2.2a" # this must match your code version
 image_dir_src           = "/tftpboot"  # Sample - /Users/bob/poap
 ftp_image_dir_src_root  = image_dir_src
 tftp_image_dir_src_root = image_dir_src
-n9k_system_image_src    = "n9000-dk9.%s.bin" % n9k_image_version
+n9k_system_image_src    = "nxos.%s.bin" % n9k_image_version
 config_file_src         = "/tftpboot/conf" # Sample - /Users/bob/poap/conf
 image_dir_dst           = "bootflash:poap" # directory where n9k image will be stored
 system_image_dst        = n9k_system_image_src
