@@ -12,9 +12,9 @@ from cisco.interface import Interface
 # NXAPI init block
 ###################
 target_url = "http://10.30.14.8/ins"
-username = "admin"
+USERNAME = "admin"
 password = "admin"
-NXAPITransport.init(target_url=target_url, username=username, password=password)
+NXAPITransport.init(target_url=target_url, username=USERNAME, password=password)
 ###################
 
 ################### 

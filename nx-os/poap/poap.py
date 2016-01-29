@@ -50,13 +50,13 @@ required_space          = 350000
 
 # copy protocol to download images and config
 # options are: scp/http/tftp/ftp/sftp
-protocol                = "scp" # protocol to use to download images/config
+PROTOCOL                = "scp" # protocol to use to download images/config
 
 # Host name and user credentials
-username                = "root" # server account
+USERNAME                = "root" # server account
 ftp_username            = "anonymous" # server account
-password                = "root" # password
-hostname                = "1.1.1.1" # ip address of ftp/scp/http/sftp server
+PASSWORD                = "root" # password
+HOSTNAME                = "1.1.1.1" # ip address of ftp/scp/http/sftp server
 
 # vrf info
 vrf = "management"
@@ -131,7 +131,7 @@ cl_protocol=None       # can overwride the script's default
 cl_download_only=None  # dont write boot variables
 
 def parse_args(argv, help=None):
-    global cl_cdp_interface, cl_serial_number, cl_protocol, protocol, cl_download_only
+    global cl_cdp_interface, cl_serial_number, cl_protocol, PROTOCOL, cl_download_only
     while argv:
         x = argv.pop(0)
         # not handling duplicate matches...
@@ -152,7 +152,7 @@ def parse_args(argv, help=None):
           except: 
             if help: cl_protocol=-1
           if len(x) != len('protocol') and help: cl_protocol=None
-          if cl_protocol: protocol=cl_protocol
+          if cl_protocol: PROTOCOL=cl_protocol
           continue
         if cmp('download-only'[0:len(x)], x) == 0:
           cl_download_only = 1
@@ -211,7 +211,7 @@ if cl_cdp_interface:
     cdp_interface=cl_cdp_interface
     config_file_type = "location"
 if cl_protocol: 
-    protocol=cl_protocol
+    PROTOCOL=cl_protocol
 
 
 # setup log file and associated utils
@@ -227,14 +227,14 @@ except Exception as inst:
 
 
 def poap_log (info):
-    poap_log_file.write(info)
-    poap_log_file.write("\n")
-    poap_log_file.flush()
+    POAP_LOG_FILE.write(info)
+    POAP_LOG_FILE.write("\n")
+    POAP_LOG_FILE.flush()
     print "poap_py_log:" + info
     sys.stdout.flush()
 
     if upload_log_on_write:
-        upload_log_file(hostname=hostname, vrf=vrf)
+        upload_log_file(hostname=HOSTNAME, vrf=vrf)
 
 
 def upload_log_file(hostname, protocol='tftp', filename=None, vrf='management', username='', password=None):
@@ -271,7 +271,7 @@ def upload_log_file(hostname, protocol='tftp', filename=None, vrf='management', 
 # others insist on calling it.
 def poap_log_close ():
     try:
-        poap_log_file.close()
+        POAP_LOG_FILE.close()
     except NameError as e:
         # someone called this function (or `abort_cleanup_exit`) before the log was initialized
         pass
@@ -282,7 +282,7 @@ def abort_cleanup_exit () :
     # Though the log file should only be referenced from the `with` block (context manager), it's sensible to leave
     # the explicit close here just in case
     if upload_log_on_write or upload_log_on_abort:
-        upload_log_file(hostname=hostname, vrf=vrf)
+        upload_log_file(hostname=HOSTNAME, vrf=vrf)
 
     poap_log_close()
     exit(-1)
@@ -306,9 +306,9 @@ print "box is", box
 
 # get final image name based on actual box
 system_image_src    = eval("%s_%s" % (box , "system_image_src"), globals())
-try: root_path      = eval("%s_%s" % (protocol , "image_dir_src_root"), globals())
+try: root_path      = eval("%s_%s" % (PROTOCOL , "image_dir_src_root"), globals())
 except: root_path   = ""
-try: username       = eval("%s_%s" % (protocol , "username"), globals())
+try: USERNAME       = eval("%s_%s" % (PROTOCOL , "username"), globals())
 except: pass
 
 # images are copied to temporary location first (dont want to 
@@ -382,12 +382,12 @@ def file_copy(srcURL, dstURL, vrf='management', password=None, rmrf=False):
 def doCopy (protocol = "", host = "", source = "", dest = "", vrf = "management", login_timeout=10, user = "", password = "", fatal=True):
 
     # mess with source paths (tftp does not like full paths)
-    global username, root_path
+    global USERNAME, root_path
     source = source[len(root_path):]
 
     # let's de-emphasize this global variable and make **locals() work
     if user == '':
-        user = username
+        user = USERNAME
 
     srcURL = '{protocol}://{user}@{host}{source}'.format(**locals())
     # we already expect `dest` to be well formed and complete
@@ -410,7 +410,7 @@ def get_md5sum_src (file_name):
     md5_file_name_dst = "volatile:%s.poap_md5" % os.path.basename(md5_file_name_src)
     rm_rf(md5_file_name_dst)
 
-    ret=doCopy(protocol, hostname, md5_file_name_src, md5_file_name_dst, vrf, md5sum_timeout, username, password, False)
+    ret=doCopy(PROTOCOL, HOSTNAME, md5_file_name_src, md5_file_name_dst, vrf, md5sum_timeout, USERNAME, PASSWORD, False)
     if ret is True:
         sum=run_cli("show file %s | grep -v '^#' | head lines 1 | sed 's/ .*$//'" % md5_file_name_dst).strip('\n')
         poap_log("INFO: md5sum %s (.md5 file)" % sum)
@@ -526,7 +526,7 @@ def verify_images ():
 
 # get config file from server
 def get_config ():
-    doCopy(protocol, hostname, config_file_src, config_file_dst, vrf, config_timeout, username, password)
+    doCopy(PROTOCOL, HOSTNAME, config_file_src, config_file_dst, vrf, config_timeout, USERNAME, PASSWORD)
     poap_log("INFO: Completed Copy of Config File") 
     # get file's md5 from server (if any) and verify it, failure is fatal (exit)
     check_md5sum (config_file_src, config_file_dst, "config file")
@@ -535,7 +535,7 @@ def get_config ():
 # get system image file from server
 def get_system_image ():
     if not same_images(system_image_src, system_image_dst):
-        doCopy(protocol, hostname, system_image_src, system_image_dst_tmp, vrf, system_timeout, username, password)  
+        doCopy(PROTOCOL, HOSTNAME, system_image_src, system_image_dst_tmp, vrf, system_timeout, USERNAME, PASSWORD)
         poap_log("INFO: Completed Copy of System Image" ) 
         # get file's md5 from server (if any) and verify it, failure is fatal (exit)
         check_md5sum(system_image_src, system_image_dst_tmp, "system image")
@@ -659,7 +659,7 @@ if cleanup_logs:
     cli('term dont-ask ; del *poap*log*')
 
 # Opening the log file in this way ensures that in all cases the file is closed cleanly
-with open(log_filename, "w+") as poap_log_file:
+with open(log_filename, "w+") as POAP_LOG_FILE:
     # some argument sanity checks:
     # These have been moved here (from approx. line 272) to facilitate better handling of the log file.
     # This is acceptable because no real actions are attempted before this point
@@ -708,7 +708,7 @@ with open(log_filename, "w+") as poap_log_file:
 
     # finally do it
     try:
-        save_address(hostname=hostname, protocol='tftp', vrf=vrf)
+        save_address(hostname=HOSTNAME, protocol='tftp', vrf=vrf)
         verify_freespace()
         get_system_image()
         verify_images()
