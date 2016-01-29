@@ -19,6 +19,7 @@
 # by downloading the corresponding file with the .md5 extension and is
 # done by this script itself.
 
+import json
 import os
 import re
 import shutil
@@ -597,6 +598,62 @@ def set_config_file_src_serial_number ():
     poap_log("INFO: Selected config filename (serial_number) : %s" % config_file_src)
 
 
+def get_ip_address(target_interface):
+    poap_log('INFO: Getting IP Address for {0}'.format(target_interface))
+    out = json.loads(clid('sh ip int bri vrf all'))
+    interface_tables = out['TABLE_intf']
+    if not isinstance(interface_tables, list):
+        interface_tables = [interface_tables]
+
+    ip_address = None
+    for interface_table in interface_tables:
+        if interface_table['ROW_intf']['intf-name'] == target_interface:
+            ip_address = interface_table['ROW_intf']['prefix']
+
+    if ip_address is None:
+        raise(ValueError('target interface {0} does not exist!'
+                         ''.format(target_interface)))
+
+    return ip_address
+
+
+def get_serial_number():
+    poap_log('INFO: Getting Serial Number')
+    out = json.loads(clid('sh inventory chassis'))['TABLE_inv']['ROW_inv']
+    return out['serialnum']
+
+
+def save_address(hostname, protocol='tftp', file_prefix='', vrf='management'):
+    """
+    creates a file '`prefix`-`serial_number`-`ip_address`' and uploads it to the server.
+    :param protocol:  'tftp', etc..  destinations requiring UN/PW not supported at this time
+    :param hostname:  hostname/ip to upload to.
+    :param file_prefix:  optional prefix for filename
+    :param vrf:  VRF in which to operate
+    :return: None
+    """
+
+    poap_log('INFO: Saving IP Address to {hostname}'.format(**locals()))
+
+    ip_address = get_ip_address('mgmt0')
+    serial_number = get_serial_number()
+
+    if file_prefix != '' and file_prefix[-1] != '-':
+        file_prefix = '{0}-'.format(file_prefix)
+
+    ip_last_octet = ip_address.split('.')[-1]
+    ip_filename = '{file_prefix}{serial_number}-{ip_last_octet}.txt'
+    ip_filepath = '/bootflash/{ip_filename}'.format(**locals())
+
+    with open(ip_filepath, 'wb') as ip_address_file:
+        ip_address_file.write('{serial_number}: {ip_address}\n'.format(**locals()))
+
+    srcURL = 'bootflash:{ip_filename}'.format(**locals())
+    dstURL = '{protocol}://{hostname}/{ip_filename}'.format(**locals())
+
+    file_copy(srcURL=srcURL, dstURL=dstURL, vrf=vrf)
+
+
 # Cleanup old log files before opening a new one
 if cleanup_logs:
     cli('term dont-ask ; del *poap*log*')
@@ -650,16 +707,21 @@ with open(log_filename, "w+") as poap_log_file:
         os.mkdir(image_dir_dst_u)
 
     # finally do it
+    try:
+        save_address(hostname=hostname, protocol='tftp', vrf=vrf)
+        verify_freespace()
+        get_system_image()
+        verify_images()
+        get_config()
 
-    verify_freespace()
-    get_system_image()
-    verify_images()
-    get_config()
+        # don't let people abort the final stage that concretize everything
+        # not sure who would send such a signal though!!!! (sysmgr not known to care about vsh)
+        signal.signal(signal.SIGTERM, sig_handler_no_exit)
+        install_it()
+    except Exception as e:
+        poap_log('ERR: {0}'.format(e))
+        raise e
 
-    # don't let people abort the final stage that concretize everything
-    # not sure who would send such a signal though!!!! (sysmgr not known to care about vsh)
-    signal.signal(signal.SIGTERM, sig_handler_no_exit)
-    install_it()
 
     if explicit_reload:
         # We made it this far, and thus were successful, yet the POAP process (on 9372PX at least) will still assume failure(!?).
