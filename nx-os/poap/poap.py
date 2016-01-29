@@ -697,6 +697,8 @@ def verify_config_type(config_file_type, cdp_interface):
     elif config_file_type == "serial_number":
         # set source config file based on switch's serial number
         set_config_file_src_serial_number()
+    elif config_file_type == 'static':
+        pass
     else:
         poap_log("ERR: Either config_file_type is not valid or interface was not given and location can not be derived.")
         exit(-1)
